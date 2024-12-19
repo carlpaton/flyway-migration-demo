@@ -1,0 +1,46 @@
+services:
+  demo-db:
+    image: postgres:17.2
+    ports:
+      - 5432:5432
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: demo_db
+    volumes:
+      - ./initialize-database.sql:/docker-entrypoint-initdb.d/initialize-database.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  demo-db-migration:
+    image: flyway/flyway:11
+    depends_on:
+      demo-db:
+        condition: service_healthy
+    environment:
+      FLYWAY_URL: jdbc:postgresql://demo-db:5432/demo_db
+      FLYWAY_USER: demo_schema_manager
+      FLYWAY_PASSWORD: password
+      FLYWAY_LOCATIONS: filesystem:/flyway/migration_scripts
+      FLYWAY_DEFAULT_SCHEMA: demo
+      FLYWAY_VALIDATE_MIGRATION_NAMING: true
+    command: migrate -connectRetries=5
+    volumes:
+      - ./migrations:/flyway/migration_scripts
+
+  demo-pgadmin:
+    image: dpage/pgadmin4:8.14
+    ports:
+      - 5050:80    
+    depends_on:
+      demo-db:
+        condition: service_healthy
+    environment:
+      PGADMIN_DEFAULT_EMAIL: user@domain.com
+      PGADMIN_DEFAULT_PASSWORD: postgres
+      PGADMIN_SERVER_JSON_FILE: /pgadmin4-server-file.json
+    volumes:
+      - ./pgadmin4-server-file.json:/pgadmin4-server-file.json
